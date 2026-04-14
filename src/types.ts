@@ -11,6 +11,34 @@ export const TOKENS = {
   WETH: "0x5A77f1443D16ee5761d310e38b62f77f726bC71c",
 } as const;
 
+// Decimals by token address (lowercased). Used to convert human-readable
+// amounts into minimal units for DEX aggregator calls.
+export const TOKEN_DECIMALS: Record<string, number> = {
+  [TOKENS.NATIVE_OKB.toLowerCase()]: 18,
+  [TOKENS.WOKB.toLowerCase()]: 18,
+  [TOKENS.USDT.toLowerCase()]: 6,
+  [TOKENS.USDC.toLowerCase()]: 6,
+  [TOKENS.WETH.toLowerCase()]: 18,
+};
+
+/**
+ * Convert a human-readable amount (e.g. "0.5") to minimal units
+ * (e.g. "500000" for USDT with 6 decimals). Returns the string
+ * unchanged if it already looks like an integer minimal-unit value
+ * and no decimals are known.
+ */
+export function toMinimalUnits(humanAmount: string, tokenAddress: string): string {
+  const decimals = TOKEN_DECIMALS[tokenAddress.toLowerCase()];
+  if (decimals === undefined) {
+    // Unknown token — assume caller already passed minimal units
+    return humanAmount;
+  }
+  const [whole, frac = ""] = humanAmount.split(".");
+  const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
+  const combined = (whole + fracPadded).replace(/^0+(?=\d)/, "") || "0";
+  return combined;
+}
+
 // OnchainOS API
 export const OKX_API_BASE = "https://web3.okx.com/api/v6";
 

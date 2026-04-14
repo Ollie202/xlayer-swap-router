@@ -3,6 +3,7 @@ import {
   SwapRequest,
   SwapResult,
   TOKENS,
+  toMinimalUnits,
 } from "./types";
 import { findBestRoute, formatComparison } from "./router";
 import * as onchainos from "./onchainos";
@@ -242,7 +243,10 @@ export async function swapFromNaturalLanguage(
 
   // Handle percentage/all — need portfolio to compute actual amount
   let amount = intent.amount;
-  if (intent.amountType !== "exact") {
+  if (intent.amountType === "exact") {
+    // Convert human-readable amount (e.g. "0.5") to minimal units (e.g. "500000")
+    amount = toMinimalUnits(intent.amount, intent.fromToken);
+  } else {
     const wallet = createWallet(privateKey);
     const portfolio = await portfolioMod.getPortfolio(okxCreds, wallet.address);
     const token = portfolio.tokens.find(
