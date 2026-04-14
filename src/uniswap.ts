@@ -3,6 +3,13 @@ import { SwapQuote, XLAYER_CHAIN_ID } from "./types";
 // Uniswap Trading API base
 const UNISWAP_API_BASE = "https://trade-api.gateway.uniswap.org/v1";
 
+function authHeaders(): Record<string, string> {
+  const key = process.env.UNISWAP_API_KEY;
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (key) h["x-api-key"] = key;
+  return h;
+}
+
 interface UniswapQuoteResponse {
   quote: {
     output: {
@@ -54,7 +61,7 @@ export async function getQuote(
 
     const res = await fetch(`${UNISWAP_API_BASE}/quote`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify(body),
     });
 
@@ -69,23 +76,39 @@ export async function getQuote(
       return null;
     }
 
-    const data = (await res.json()) as UniswapQuoteResponse;
-    const q = data.quote;
+    const data: any = await res.json();
+    const q = data.quote || data;
 
-    const routePath = q.route?.map(
-      (r) => `Uniswap ${r.protocol} (pool: ${r.poolAddress.slice(0, 10)}...)`
-    ) ?? ["Uniswap"];
+    // Defensive route path — Uniswap response shapes vary (v2/v3/v4/Universal)
+    const routePath: string[] = [];
+    try {
+      const routes = q.route || q.routes || [];
+      if (Array.isArray(routes)) {
+        for (const r of routes) {
+          const hops = Array.isArray(r) ? r : [r];
+          for (const h of hops) {
+            const label = h.protocol || h.type || "Uniswap";
+            const pool = h.poolAddress || h.address || h.pool || "";
+            const fee = h.fee ? ` ${(parseInt(h.fee) / 10000).toFixed(2)}%` : "";
+            routePath.push(`Uniswap ${label}${fee}${pool ? ` (${String(pool).slice(0, 10)}...)` : ""}`);
+          }
+        }
+      }
+    } catch { /* route path is optional */ }
+
+    const output = q.output || q.outputAmount || q.amountOut || {};
+    const toAmount = output.amount || q.toAmount || q.quote || "0";
 
     return {
       source: "uniswap",
       fromToken,
       toToken,
       fromAmount: amount,
-      toAmount: q.output.amount,
-      toAmountReadable: q.output.amount,
-      estimatedGas: q.gasFeeEstimate || "0",
-      priceImpact: (q.priceImpact ?? 0).toString(),
-      routePath,
+      toAmount: String(toAmount),
+      toAmountReadable: String(toAmount),
+      estimatedGas: q.gasFeeEstimate || q.gasUseEstimate || "0",
+      priceImpact: String(q.priceImpact ?? q.priceImpactPercentage ?? 0),
+      routePath: routePath.length > 0 ? routePath : ["Uniswap aggregated"],
     };
   } catch (err) {
     console.error("Uniswap quote error:", err);
@@ -114,7 +137,7 @@ export async function getSwapTx(
 
     const res = await fetch(`${UNISWAP_API_BASE}/swap`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify(body),
     });
 
