@@ -1,0 +1,31 @@
+{
+  "name": "xlayer-swap-router",
+  "version": "1.0.0",
+  "description": "Cross-protocol swap router skill for X Layer — compares OnchainOS DEX and Uniswap routes to find the best price",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "keywords": [
+    "xlayer",
+    "swap",
+    "dex",
+    "onchainos",
+    "uniswap",
+    "agent",
+    "skill"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.5.0"
+  }
+}
