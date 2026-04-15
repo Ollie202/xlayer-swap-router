@@ -5,7 +5,12 @@ const UNISWAP_API_BASE = "https://trade-api.gateway.uniswap.org/v1";
 
 function authHeaders(): Record<string, string> {
   const key = process.env.UNISWAP_API_KEY;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
+  // Headers mandated by Uniswap's official swap-integration AI skill
+  // (installed via `npx skills add uniswap/uniswap-ai --skill swap-integration`)
+  const h: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-universal-router-version": "2.0",
+  };
   if (key) h["x-api-key"] = key;
   return h;
 }

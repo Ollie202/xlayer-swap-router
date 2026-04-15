@@ -11,7 +11,7 @@ An intelligent reusable skill that turns natural-language swap commands into opt
 ## What Makes This Smart
 
 1. **Natural Language Parsing** — `"swap half my USDT for OKB if price is below 50"` → structured intent with conditions
-2. **Dual-Source Routing** — Parallel quotes from OnchainOS DEX aggregator and Uniswap Trading API
+2. **Dual-Source Routing** — Parallel quotes from OnchainOS DEX aggregator and Uniswap's Trading API, integrated via Uniswap's official [swap-integration AI skill](https://github.com/uniswap/uniswap-ai) (installed with `npx skills add uniswap/uniswap-ai --skill swap-integration`). All Trading API requests follow the spec from their skill: `x-api-key` + `x-universal-router-version: 2.0` headers, 3-step `/check_approval` → `/quote` → `/swap` flow.
 3. **Multi-Hop Discovery** — Tries A→B direct vs A→X→B through WOKB/USDT/USDC/WETH intermediaries
 4. **Smart Slippage** — Dynamically calculated from liquidity ratio, 24h momentum, and hourly volatility (not a static 1%)
 5. **Portfolio Awareness** — Checks wallet balances, warns on concentrated trades, flags risk tokens
