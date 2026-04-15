@@ -1,6 +1,6 @@
 {
   "name": "xlayer-swap-router",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Intelligent cross-protocol swap router for X Layer — routes in parallel across OnchainOS DEX and Uniswap (via Uniswap's official swap-integration AI skill) for best execution, with NL parsing, smart slippage, and portfolio awareness",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
