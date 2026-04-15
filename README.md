@@ -8,7 +8,7 @@ Built for the [OKX Build X AI Hackathon](https://web3.okx.com/xlayer/build-x-hac
 
 1. **Natural Language** — `"swap half my USDT for OKB"` → structured intent
 2. **Market Data** — Live price, volume, liquidity, 24h change, candlestick volatility
-3. **Dual-Source Routing** — OnchainOS DEX aggregator + Uniswap Trading API in parallel
+3. **Dual-Source Routing** — OnchainOS DEX aggregator + Uniswap Trading API in parallel, picks whichever gives the user more output. Uniswap is integrated per their [official `swap-integration` AI skill](https://github.com/uniswap/uniswap-ai) (installed via `npx skills add uniswap/uniswap-ai --skill swap-integration`).
 4. **Multi-Hop Discovery** — A→B vs A→USDT→B vs A→WOKB→B, pick the winner
 5. **Smart Slippage** — Dynamic based on liquidity ratio, 24h momentum, hourly volatility
 6. **Portfolio Awareness** — Balance checks, concentrated-trade warnings, risk token flags
@@ -177,7 +177,7 @@ src/
 - **Balance** — all-token-balances-by-address
 - **Agentic Wallet** — for signing and broadcasting
 
-Plus **Uniswap Trading API** for cross-protocol comparison.
+Plus **Uniswap Trading API** (integrated via Uniswap's official AI skill `uniswap/uniswap-ai/swap-integration`) for cross-protocol best-execution routing. Neither source is treated as primary — the router quotes both in parallel and hands the user the better output on every swap.
 
 ## License
 

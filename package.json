@@ -1,14 +1,29 @@
 {
   "name": "xlayer-swap-router",
   "version": "1.0.0",
-  "description": "Cross-protocol swap router skill for X Layer — compares OnchainOS DEX and Uniswap routes to find the best price",
+  "description": "Intelligent cross-protocol swap router for X Layer — routes in parallel across OnchainOS DEX and Uniswap (via Uniswap's official swap-integration AI skill) for best execution, with NL parsing, smart slippage, and portfolio awareness",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "xlayer-swap-router": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ollie202/xlayer-swap-router.git"
+  },
+  "homepage": "https://github.com/Ollie202/xlayer-swap-router",
   "keywords": [
     "xlayer",
     "swap",

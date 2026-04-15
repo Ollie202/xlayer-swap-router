@@ -1,7 +1,7 @@
 ---
 name: xlayer-swap-router
 version: 2.0.0
-description: "Intelligent cross-protocol swap router for X Layer. Parses natural language commands, fetches real-time market data, compares quotes from OnchainOS DEX aggregator and Uniswap Trading API, discovers multi-hop routes through intermediate tokens, calculates dynamic slippage from liquidity and volatility, and checks wallet portfolio before executing. Use when an agent needs to swap tokens intelligently on X Layer."
+description: "Intelligent cross-protocol swap router for X Layer. Parses natural language commands, fetches real-time market data, routes in parallel through OnchainOS DEX aggregator and Uniswap's Trading API (via Uniswap's official swap-integration AI skill) to give the user best execution on every swap, discovers multi-hop routes through intermediate tokens, calculates dynamic slippage from liquidity and volatility, and checks wallet portfolio before executing. Use when an agent needs to swap tokens intelligently on X Layer."
 ---
 
 # X Layer Swap Router (v2)
@@ -11,7 +11,7 @@ An intelligent reusable skill that turns natural-language swap commands into opt
 ## What Makes This Smart
 
 1. **Natural Language Parsing** — `"swap half my USDT for OKB if price is below 50"` → structured intent with conditions
-2. **Dual-Source Routing** — Parallel quotes from OnchainOS DEX aggregator and Uniswap's Trading API, integrated via Uniswap's official [swap-integration AI skill](https://github.com/uniswap/uniswap-ai) (installed with `npx skills add uniswap/uniswap-ai --skill swap-integration`). All Trading API requests follow the spec from their skill: `x-api-key` + `x-universal-router-version: 2.0` headers, 3-step `/check_approval` → `/quote` → `/swap` flow.
+2. **Best-Execution Routing Across OnchainOS + Uniswap** — Parallel quotes from OnchainOS DEX aggregator and Uniswap's Trading API; the user gets whichever returns more output on every swap. Uniswap is integrated via their official [swap-integration AI skill](https://github.com/uniswap/uniswap-ai) (installed with `npx skills add uniswap/uniswap-ai --skill swap-integration`) — all Trading API requests follow that skill's spec: `x-api-key` + `x-universal-router-version: 2.0` headers, 3-step `/check_approval` → `/quote` → `/swap` flow. Neither source is hard-coded as primary; which one wins depends on the pair and current liquidity.
 3. **Multi-Hop Discovery** — Tries A→B direct vs A→X→B through WOKB/USDT/USDC/WETH intermediaries
 4. **Smart Slippage** — Dynamically calculated from liquidity ratio, 24h momentum, and hourly volatility (not a static 1%)
 5. **Portfolio Awareness** — Checks wallet balances, warns on concentrated trades, flags risk tokens
