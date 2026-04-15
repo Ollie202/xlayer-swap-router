@@ -179,6 +179,24 @@ src/
 
 Plus **Uniswap Trading API** (integrated via Uniswap's official AI skill `uniswap/uniswap-ai/swap-integration`) for cross-protocol best-execution routing. Neither source is treated as primary — the router quotes both in parallel and hands the user the better output on every swap.
 
+## Skill Composition: This Skill + Uniswap's AI Skill
+
+This repo ships as an AI skill that is **designed to compose with Uniswap's official `swap-integration` skill**. The two are meant to run side-by-side:
+
+| Skill | Owns |
+|---|---|
+| `xlayer-swap-router` (this repo) | X Layer / OnchainOS side, market data, portfolio, smart slippage, NL parsing, cross-protocol decision |
+| [`uniswap/uniswap-ai/swap-integration`](https://github.com/uniswap/uniswap-ai) | Uniswap wire contract (headers, endpoints, Universal Router version, permit2, error codes) |
+
+Install both into the same agent:
+
+```bash
+npx skills add uniswap/uniswap-ai --skill swap-integration
+npm install xlayer-swap-router
+```
+
+The Uniswap skill is pinned in `skills-lock.json`. When an agent (Claude Code, OpenClaw, etc.) loads this repo's `.agents/skills/` directory it picks up the Uniswap skill automatically. The runtime code in `src/uniswap.ts` implements the exact wire contract from Uniswap's skill, so CLI/library users get the same behavior agents do — but the canonical spec lives in Uniswap's skill, not here.
+
 ## License
 
 MIT

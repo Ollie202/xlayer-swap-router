@@ -18,6 +18,26 @@ An intelligent reusable skill that turns natural-language swap commands into opt
 6. **Market Intelligence** — Live price, 24h volume, liquidity, market cap, candlestick volatility, trend detection
 7. **AI Advice** — Context-aware warnings: falling knife detection, overextended pumps, large-trade alerts
 
+## Skill Composition (Uniswap AI Skill Required)
+
+This skill is designed to run **alongside** Uniswap's official `swap-integration` skill, not as a replacement for it. When an agent loads `xlayer-swap-router`, it should also load `uniswap/uniswap-ai/swap-integration` — the two compose:
+
+- **This skill (`xlayer-swap-router`)** owns the X Layer side: OnchainOS aggregator calls, market data, portfolio checks, smart slippage, NL parsing, multi-hop routing, and the decision of which source wins on each swap.
+- **Uniswap's `swap-integration` skill** owns the Uniswap side: authoritative contract for `/check_approval` → `/quote` → `/swap`, Universal Router version handling, chain-ID conventions, and permit2 semantics.
+
+When an agent gets a "swap on X Layer" task, both skills activate: this skill drives the flow and asks the Uniswap skill for the Uniswap quote/tx; the Uniswap skill returns data shaped per its spec; this skill reconciles it against the OnchainOS quote and picks the winner.
+
+Install both together:
+
+```bash
+npx skills add uniswap/uniswap-ai --skill swap-integration
+npm install xlayer-swap-router
+```
+
+The dependency is pinned in this repo's `skills-lock.json` so agents that load this repo's `.agents/skills/` directory get the Uniswap skill automatically.
+
+The runtime client in `src/uniswap.ts` implements the exact wire contract documented by the Uniswap skill (headers, endpoints, error codes), so a CLI/library user gets identical behavior — but the canonical source of truth for how to talk to Uniswap remains the Uniswap skill.
+
 ## Commands
 
 ```bash
