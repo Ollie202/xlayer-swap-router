@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+
+# Local helper scripts + API response dumps (not part of the skill)
+verify*.js
+comment*.js
+post*.js
+reply.js
+repost.js
+delete.js
+list.js
+polish.js
+upvote.js
+update.js
+*-response.json
+response.json
+list.json
+pending.json
+
+# Installed agent skills + lockfile (pulled via npx skills add)
+.agents/
+.claude/
+skills/
+skills-lock.json
+package-lock.json
