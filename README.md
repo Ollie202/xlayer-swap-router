@@ -1,233 +1,165 @@
 # xlayer-swap-router
 
-**Intelligent cross-protocol swap router for X Layer.** Not just a DEX wrapper — parses natural language, fetches market data, discovers multi-hop routes, calculates smart slippage, checks portfolio risk, and executes through the optimal path.
+A swap tool for X Layer where you just type what you want.
 
-Built for the [OKX Build X AI Hackathon](https://web3.okx.com/xlayer/build-x-hackathon) — Skill Arena track.
-
-## The 7 Layers of Intelligence
-
-1. **Natural Language** — `"swap half my USDT for OKB"` → structured intent
-2. **Market Data** — Live price, volume, liquidity, 24h change, candlestick volatility
-3. **Dual-Source Routing** — OnchainOS DEX aggregator + Uniswap Trading API in parallel, picks whichever gives the user more output. Uniswap is integrated per their [official `swap-integration` AI skill](https://github.com/uniswap/uniswap-ai) (installed via `npx skills add uniswap/uniswap-ai --skill swap-integration`).
-4. **Multi-Hop Discovery** — A→B vs A→USDT→B vs A→WOKB→B, pick the winner
-5. **Smart Slippage** — Dynamic based on liquidity ratio, 24h momentum, hourly volatility
-6. **Portfolio Awareness** — Balance checks, concentrated-trade warnings, risk token flags
-7. **AI Advice** — "Falling knife" detection, pump warnings, stablecoin fast-path
-
-## Example: Full Analysis
-
-```bash
-$ node dist/index.js analyze USDT OKB 1000000 0xWallet
-
-========================================
-  SWAP ANALYSIS: USDT -> OKB
-========================================
-
-=== Portfolio: 0x12345678...abcdef ===
-  Total Value: $1,234.56
-
-  Token          Balance              Value (USD)
-  -------------------------------------------------------
-  USDT           1000.0000            $1000.00
-  OKB            0.5000               $25.00
-  WETH           0.0500               $150.00
-
-=== Market Analysis: OKB ===
-  Price:           $50.123456
-  24h Change:      +2.34%
-  24h Volume:      $12.45M
-  Liquidity:       $8.90M
-  Market Cap:      $1.23B
-  Volatility (24h): 1.82%
-  Trend:           Mild uptrend
-
-=== Swap Route Comparison ===
-[ONCHAINOS] ** BEST **
-  Output amount: 19876543210000000000
-  Route:         Uniswap (60%) -> SushiSwap (40%)
-
-[UNISWAP]
-  Output amount: 19750000000000000000
-  Route:         Uniswap v3 (pool: 0x123...)
-
-=== Multi-Hop Route Analysis ===
-[HOP 1] USDT -> WETH -> OKB
-  Output: 20100000000000000000
-  ** BETTER THAN DIRECT **
-
-=== Smart Slippage Analysis ===
-  Recommended: 0.85%
-  Confidence:  high
-  Reasoning:   Trade is 0.01% of pool liquidity. Low volatility. Moderate 24h momentum.
-
-=== Risk Assessment ===
-  - Portfolio check passed. Trade size is reasonable relative to holdings.
-
-=== AI Advice ===
-  - Market conditions look normal for this swap. Proceed when ready.
+```
+$ xlayer-swap-router nl "swap half my USDT for OKB if price is below 55"
 ```
 
-## Example: Natural Language
+That's the whole interface. It figures out what you meant, checks the price, works out a sensible slippage, looks at your wallet, picks the better of OKX's aggregator vs Uniswap, and sends the transaction.
+
+Built for the OKX Build X hackathon, Skill Arena track.
+
+## What's in the box
+
+- A natural-language parser that accepts dozens of phrasings (not just one rigid format)
+- Quotes pulled in parallel from **OKX OnchainOS** and **Uniswap**; whichever pays more, wins
+- Live prices derived from actual aggregator quotes — not a stale feed
+- Slippage picked per-swap from live volatility and pool depth, not a fixed 1%
+- Portfolio-aware: up-front "insufficient balance" check, warnings on trades that are a big chunk of your wallet, risk-token flags
+- Multi-hop search when direct A→B is worse than A→USDT→B
+- Uniswap side wired through Uniswap's official [`swap-integration` AI skill](https://github.com/uniswap/uniswap-ai) — the two skills are designed to compose
+
+## Install
 
 ```bash
-$ node dist/index.js nl "swap half my USDT for OKB if price is below 55"
-
-Understood: Swap 50% of USDT for OKB (if OKB price below $55)
-Resolved amount: 500000000 (percentage of USDT balance)
-Price condition met: current $50.1234
-[proceeds with swap...]
+npm install xlayer-swap-router
 ```
 
-### All Supported Phrasings
-
-The `nl` parser is forgiving — it understands dozens of ways to say the same thing:
-
-| Category | Examples |
-|---|---|
-| **Basic** | `swap 100 USDT for OKB`, `convert 10 USDT to USDC`, `sell 50 USDT for WETH`, `100 USDT to OKB` |
-| **Slangy** | `flip 5 OKB to USDT`, `dump all my USDT into OKB`, `yeet 100 USDT into OKB`, `ape 10 USDT into OKB`, `turn 50 USDT into OKB` |
-| **Portions** | `swap half my USDT to OKB`, `swap all my WETH for USDT`, `25% of my OKB to USDT`, `a quarter of my USDT to OKB`, `two thirds of my OKB for USDT`, `my entire USDT balance to OKB` |
-| **Dollar value** | `swap $5 worth of OKB to USDT`, `$20 of OKB to USDT`, `swap $100 of USDT to OKB` (resolved at live price) |
-| **Conditional** | `swap 100 USDT for OKB if price is below 50`, `swap 1 USDT to OKB if price above $55`, `swap 100 USDT for OKB once price drops to 40`, `swap 100 USDT to OKB when price is above 60` |
-| **Buy-side** | `buy OKB with 100 USDT`, `purchase OKB using 50 USDT` |
-
-Unknown tokens, same-token pairs, and unresolvable amounts return structured warnings. **Insufficient balance is caught up front** — the router refuses to build a transaction it can't pay for, instead of getting a cryptic on-chain revert.
-
-## Live Prices
+Or clone + build:
 
 ```bash
-$ node dist/index.js price OKB
-
-=== Live Price: OKB ===
-  Price:        $50.123456
-  24h Change:   +2.34%
-  24h Volume:   $12.45M
-  Liquidity:    $8.90M
-  Market Cap:   $1.23B
-  Source:       OKX OnchainOS DEX market API
-```
-
-Price data comes from the OKX OnchainOS DEX market API, the same source OKX's own UIs use on X Layer. (Jupiter is Solana-only and not applicable for X Layer routing.)
-
-## Quick Start
-
-```bash
-git clone https://github.com/YOUR_USERNAME/xlayer-swap-router.git
+git clone https://github.com/Ollie202/xlayer-swap-router.git
 cd xlayer-swap-router
 npm install
-cp .env.example .env
-# Fill in your OnchainOS API keys and wallet private key
 npm run build
-node dist/index.js --help
+```
+
+You need an OKX OnchainOS API key, secret, and passphrase from the [OKX DEX Dev Portal](https://web3.okx.com/onchainos/dev-portal). Drop them in `.env`:
+
+```env
+OKX_API_KEY=...
+OKX_SECRET_KEY=...
+OKX_PASSPHRASE=...
+UNISWAP_API_KEY=...          # optional; get one at hub.uniswap.org
+WALLET_PRIVATE_KEY=0x...     # only needed if you want to actually swap
 ```
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `quote <from> <to> <amt> <wallet>` | Compare OnchainOS vs Uniswap (read-only) |
-| `analyze <from> <to> <amt> <wallet>` | Full multi-layer analysis (read-only) |
-| `swap <from> <to> <amt>` | Execute with smart auto-slippage |
-| `nl "<command>"` | Natural-language swap |
-| `portfolio <wallet>` | Show X Layer holdings |
+```bash
+# Talk to it in english
+xlayer-swap-router nl "swap 10 USDT for OKB"
 
-## Environment Variables
+# Read-only: compare OKX vs Uniswap quotes side-by-side
+xlayer-swap-router quote USDT OKB 1000000 0xYourWallet
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OKX_API_KEY` | Yes | From [Dev Portal](https://web3.okx.com/onchainos/dev-portal) |
-| `OKX_SECRET_KEY` | Yes | OnchainOS secret |
-| `OKX_PASSPHRASE` | Yes | OnchainOS passphrase |
-| `WALLET_PRIVATE_KEY` | For swaps | Agentic Wallet key |
-| `XLAYER_RPC_URL` | No | Default `https://rpc.xlayer.tech` |
+# Read-only: full thinking (market + portfolio + slippage + advice)
+xlayer-swap-router analyze USDT OKB 1000000 0xYourWallet
 
-## Library API
+# Execute a swap with smart auto-slippage
+xlayer-swap-router swap USDT OKB 1000000
 
-```typescript
-import {
-  quote,             // Fast route comparison
-  analyze,           // Full multi-layer analysis
-  swapViaBestRoute,  // Execute with smart slippage
-  swapFromNaturalLanguage,  // NL-driven execution
-  parseSwapIntent,   // Parse NL without executing
-} from "xlayer-swap-router";
+# Live USD price for any token (derived from real quotes, not a feed)
+xlayer-swap-router price OKB
 
-// Full analysis
-const { summary, comparison, slippage, riskWarnings } = await analyze(
-  "USDT", "OKB", "1000000", wallet, okxCreds
-);
+# Wallet holdings on X Layer
+xlayer-swap-router portfolio 0xYourWallet
 ```
 
-## Architecture
+All amounts are in the token's minimal units when using direct commands (`1000000` USDT = 1 USDT, since USDT has 6 decimals). The `nl` command handles decimals for you — `"swap 0.5 OKB for USDT"` just works.
 
-```
-   "swap half USDT for OKB if price below 50"
-                    |
-             [planner.ts]
-         Parse NL -> SwapIntent
-                    |
-     +--------------+--------------+
-     |              |              |
-[market.ts]  [portfolio.ts]  [router.ts]
-Price/Vol    Balances/Risk   OnchainOS
-Candles      Check           + Uniswap
-Trends                       + Multi-hop
-     |              |              |
-     +--------------+--------------+
-                    |
-            [smartSlippage.ts]
-            Dynamic slippage calc
-                    |
-              [wallet.ts]
-            Approve -> Swap -> Confirm
-                    |
-                  txHash
-```
+## Natural language: what you can actually type
 
-## Project Structure
-
-```
-src/
-  index.ts         — Main entry + CLI
-  planner.ts       — NL parsing + AI advice generation
-  market.ts        — OnchainOS Market API (prices, candles, liquidity)
-  router.ts        — Parallel quote comparison
-  multihop.ts      — Multi-hop route discovery
-  smartSlippage.ts — Dynamic slippage calculation
-  portfolio.ts     — Wallet balance + risk assessment
-  onchainos.ts     — OnchainOS DEX aggregator client
-  uniswap.ts       — Uniswap Trading API client
-  wallet.ts        — Agentic Wallet signing
-  types.ts         — Shared types and X Layer constants
-```
-
-## OnchainOS Modules Used
-
-- **DEX Aggregator** — quote, swap, approve, liquidity sources
-- **Market Data** — price, price-info, candlesticks
-- **Balance** — all-token-balances-by-address
-- **Agentic Wallet** — for signing and broadcasting
-
-Plus **Uniswap Trading API** (integrated via Uniswap's official AI skill `uniswap/uniswap-ai/swap-integration`) for cross-protocol best-execution routing. Neither source is treated as primary — the router quotes both in parallel and hands the user the better output on every swap.
-
-## Skill Composition: This Skill + Uniswap's AI Skill
-
-This repo ships as an AI skill that is **designed to compose with Uniswap's official `swap-integration` skill**. The two are meant to run side-by-side:
-
-| Skill | Owns |
+| Style | Examples |
 |---|---|
-| `xlayer-swap-router` (this repo) | X Layer / OnchainOS side, market data, portfolio, smart slippage, NL parsing, cross-protocol decision |
-| [`uniswap/uniswap-ai/swap-integration`](https://github.com/uniswap/uniswap-ai) | Uniswap wire contract (headers, endpoints, Universal Router version, permit2, error codes) |
+| **Basic** | `swap 100 USDT for OKB` · `convert 10 USDT to USDC` · `sell 50 USDT for WETH` · `100 USDT to OKB` |
+| **Slangy** | `flip 5 OKB to USDT` · `dump all my USDT into OKB` · `yeet 100 USDT into OKB` · `ape 10 USDT into OKB` · `turn 50 USDT into OKB` |
+| **Portions of balance** | `swap half my USDT to OKB` · `swap all my WETH for USDT` · `25% of my OKB to USDT` · `a quarter of my USDT to OKB` · `two thirds of my OKB for USDT` · `my entire USDT balance to OKB` |
+| **Dollar amounts** | `swap $5 worth of OKB to USDT` · `$20 of OKB to USDT` · `swap $100 of USDT to OKB` (resolved at live price) |
+| **Conditional** | `swap 100 USDT for OKB if price is below 50` · `swap 1 USDT to OKB if price above $55` · `swap 100 USDT for OKB once price drops to 40` · `swap 100 USDT to OKB when price is above 60` |
+| **Buy-side** | `buy OKB with 100 USDT` · `purchase OKB using 50 USDT` |
 
-Install both into the same agent:
+If it can't figure out what you meant, it says so — it won't make something up and send a transaction.
+
+## Why the prices are accurate
+
+Instead of trusting a published price feed, every price is derived from a real swap quote: "if I sent 1 OKB into the aggregator right now, how much USDC would I get back?" That number is what the chain will actually pay you, so there's nothing to go stale.
+
+Both OKX OnchainOS and Uniswap are quoted in parallel; whichever returns more USDC wins, and that's the price you see.
+
+## How routing works
+
+Every swap gets two quotes in parallel — OKX OnchainOS aggregator and Uniswap's Trading API. The router hands you whichever returns more output. Neither is hard-coded as primary. On any given pair, either one can win; the router picks per-swap.
+
+The Uniswap side isn't wired by hand. It follows the contract documented in Uniswap's official [`swap-integration` skill](https://github.com/uniswap/uniswap-ai) — headers, endpoints, Universal Router version, the `/check_approval` → `/quote` → `/swap` flow. The skill is pinned in [`skills-lock.json`](./skills-lock.json) so agents that load this repo get both skills together.
+
+To install both into the same agent:
 
 ```bash
 npx skills add uniswap/uniswap-ai --skill swap-integration
 npm install xlayer-swap-router
 ```
 
-The Uniswap skill is pinned in `skills-lock.json`. When an agent (Claude Code, OpenClaw, etc.) loads this repo's `.agents/skills/` directory it picks up the Uniswap skill automatically. The runtime code in `src/uniswap.ts` implements the exact wire contract from Uniswap's skill, so CLI/library users get the same behavior agents do — but the canonical spec lives in Uniswap's skill, not here.
+## Safety rails
+
+- **Insufficient balance**: checked before the swap is built. No cryptic on-chain reverts.
+- **Same-token pairs**: refused with a message.
+- **Unsupported tokens** (e.g. USDD, which isn't on X Layer): refused with a suggestion to use USDT/USDC.
+- **Trade too large for your wallet**: you get a warning before execution.
+- **Risk-token flags**: pulled from OKX's balance API; surfaced as a warning.
+- **Falling knife / overextended pump**: detected from 24h change, surfaced as advice.
+
+## Using it from code
+
+```typescript
+import {
+  quote,
+  analyze,
+  swapViaBestRoute,
+  swapFromNaturalLanguage,
+  parseSwapIntent,
+} from "xlayer-swap-router";
+
+// Just the routing comparison
+const { summary, comparison } = await quote(
+  "USDT", "OKB", "1000000", walletAddr, okxCreds
+);
+
+// The full analysis (market + portfolio + slippage + advice)
+const analysis = await analyze(
+  "USDT", "OKB", "1000000", walletAddr, okxCreds
+);
+
+// Execute at best route with smart slippage
+const result = await swapViaBestRoute(
+  "USDT", "OKB", "1000000", privateKey, okxCreds
+);
+
+// Or let the parser handle everything
+await swapFromNaturalLanguage(
+  "swap half my USDT for OKB if price is below 50",
+  privateKey, okxCreds
+);
+```
+
+## Layout
+
+```
+src/
+  index.ts          — CLI + public library API
+  planner.ts        — Natural-language parser
+  market.ts         — Live-price derivation, trading info, candlesticks
+  router.ts         — Parallel quote comparison
+  multihop.ts       — Multi-hop route discovery
+  smartSlippage.ts  — Per-swap slippage from volatility + pool depth
+  portfolio.ts      — Balances, risk assessment
+  onchainos.ts      — OKX OnchainOS client
+  uniswap.ts        — Uniswap Trading API client (per their swap-integration skill)
+  wallet.ts         — ethers signer + broadcast
+  types.ts          — X Layer constants, decimals, SwapIntent
+```
 
 ## License
 
-MIT
+MIT. Do whatever you want with it. If you build something cool on top, ping me.

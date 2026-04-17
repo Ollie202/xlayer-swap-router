@@ -2,7 +2,11 @@ import {
   OkxCredentials,
   OKX_API_BASE,
   XLAYER_CHAIN_ID,
+  TOKENS,
+  TOKEN_DECIMALS,
 } from "./types";
+import * as onchainos from "./onchainos";
+import * as uniswap from "./uniswap";
 import crypto from "crypto";
 
 function createSignature(
@@ -256,4 +260,60 @@ function detectTrend(candles: Candlestick[]): string {
   if (change < -5) return "Strong downtrend";
   if (change < -1) return "Mild downtrend";
   return "Sideways / consolidating";
+}
+
+/**
+ * Derive a live USD price for a token by asking the actual swap routers
+ * "what would one unit of this token swap to, in USDC?". This is always
+ * accurate because it's exactly what the chain would pay you right now —
+ * no stale feed, no oracle, just the live aggregator quote.
+ *
+ * Quotes both OnchainOS and Uniswap in parallel and takes the better
+ * quote, so the price reflects the best execution available on X Layer.
+ *
+ * For stablecoins (USDC/USDT) we return $1 directly to avoid a pointless
+ * round-trip.
+ */
+export async function getLivePriceUsd(
+  creds: OkxCredentials,
+  tokenAddress: string
+): Promise<{ priceUsd: number; source: "onchainos" | "uniswap" | "stable" } | null> {
+  const lower = tokenAddress.toLowerCase();
+  const USDC = TOKENS.USDC.toLowerCase();
+  const USDT = TOKENS.USDT.toLowerCase();
+
+  if (lower === USDC || lower === USDT) {
+    return { priceUsd: 1.0, source: "stable" };
+  }
+
+  // Native OKB placeholder isn't a real ERC-20 for aggregator purposes; use WOKB.
+  const quoteAddr =
+    lower === TOKENS.NATIVE_OKB.toLowerCase() ? TOKENS.WOKB : tokenAddress;
+
+  const tokenDecimals = TOKEN_DECIMALS[quoteAddr.toLowerCase()] ?? 18;
+  // Use 1 full token worth as the quote size — enough for price discovery,
+  // small enough that price impact doesn't distort the answer.
+  const oneUnit = (BigInt(10) ** BigInt(tokenDecimals)).toString();
+
+  const [osQuote, uniQuote] = await Promise.all([
+    onchainos.getQuote(creds, quoteAddr, TOKENS.USDC, oneUnit).catch(() => null),
+    uniswap
+      .getQuote(quoteAddr, TOKENS.USDC, oneUnit, "0x0000000000000000000000000000000000000001")
+      .catch(() => null),
+  ]);
+
+  const candidates: Array<{ priceUsd: number; source: "onchainos" | "uniswap" }> = [];
+  if (osQuote && osQuote.toAmount && osQuote.toAmount !== "0") {
+    const usdc = Number(osQuote.toAmount) / 1e6;
+    if (usdc > 0) candidates.push({ priceUsd: usdc, source: "onchainos" });
+  }
+  if (uniQuote && uniQuote.toAmount && uniQuote.toAmount !== "0") {
+    const usdc = Number(uniQuote.toAmount) / 1e6;
+    if (usdc > 0) candidates.push({ priceUsd: usdc, source: "uniswap" });
+  }
+
+  if (candidates.length === 0) return null;
+  // Prefer the higher quote — that's what the user would actually get.
+  candidates.sort((a, b) => b.priceUsd - a.priceUsd);
+  return candidates[0];
 }

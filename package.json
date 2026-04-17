@@ -1,7 +1,7 @@
 {
   "name": "xlayer-swap-router",
   "version": "1.0.1",
-  "description": "Intelligent cross-protocol swap router for X Layer — routes in parallel across OnchainOS DEX and Uniswap (via Uniswap's official swap-integration AI skill) for best execution, with NL parsing, smart slippage, and portfolio awareness",
+  "description": "Type what you want and it swaps on X Layer. Parses natural language (dozens of phrasings), quotes OKX OnchainOS and Uniswap in parallel, derives live prices from real quotes, picks slippage from volatility and pool depth, checks the wallet before execution. Uniswap side wired through Uniswap's official swap-integration AI skill.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
