@@ -281,39 +281,50 @@ export async function getLivePriceUsd(
   const lower = tokenAddress.toLowerCase();
   const USDC = TOKENS.USDC.toLowerCase();
   const USDT = TOKENS.USDT.toLowerCase();
+  const NATIVE = TOKENS.NATIVE_OKB.toLowerCase();
 
   if (lower === USDC || lower === USDT) {
     return { priceUsd: 1.0, source: "stable" };
   }
 
-  // Native OKB placeholder isn't a real ERC-20 for aggregator purposes; use WOKB.
-  const quoteAddr =
-    lower === TOKENS.NATIVE_OKB.toLowerCase() ? TOKENS.WOKB : tokenAddress;
+  // Two address forms: OKX aggregator accepts the native OKB placeholder
+  // directly (and will use the native route). Uniswap only handles ERC-20s,
+  // so for native OKB we ask it about WOKB instead.
+  const okxSideAddr = tokenAddress;
+  const uniSideAddr = lower === NATIVE ? TOKENS.WOKB : tokenAddress;
 
-  const tokenDecimals = TOKEN_DECIMALS[quoteAddr.toLowerCase()] ?? 18;
-  // Use 1 full token worth as the quote size — enough for price discovery,
+  const decimalsAddr = lower === NATIVE ? TOKENS.WOKB : tokenAddress;
+  const tokenDecimals = TOKEN_DECIMALS[decimalsAddr.toLowerCase()] ?? 18;
+  // 1 full token worth as the probe size — enough for price discovery,
   // small enough that price impact doesn't distort the answer.
   const oneUnit = (BigInt(10) ** BigInt(tokenDecimals)).toString();
 
-  const [osQuote, uniQuote] = await Promise.all([
-    onchainos.getQuote(creds, quoteAddr, TOKENS.USDC, oneUnit).catch(() => null),
+  // Query both aggregators against both USDC and USDT and take the best
+  // (highest) quote as the USD price. Parallel, so no extra latency.
+  const [osUsdc, osUsdt, uniUsdc, uniUsdt] = await Promise.all([
+    onchainos.getQuote(creds, okxSideAddr, TOKENS.USDC, oneUnit).catch(() => null),
+    onchainos.getQuote(creds, okxSideAddr, TOKENS.USDT, oneUnit).catch(() => null),
     uniswap
-      .getQuote(quoteAddr, TOKENS.USDC, oneUnit, "0x0000000000000000000000000000000000000001")
+      .getQuote(uniSideAddr, TOKENS.USDC, oneUnit, "0x0000000000000000000000000000000000000001")
+      .catch(() => null),
+    uniswap
+      .getQuote(uniSideAddr, TOKENS.USDT, oneUnit, "0x0000000000000000000000000000000000000001")
       .catch(() => null),
   ]);
 
   const candidates: Array<{ priceUsd: number; source: "onchainos" | "uniswap" }> = [];
-  if (osQuote && osQuote.toAmount && osQuote.toAmount !== "0") {
-    const usdc = Number(osQuote.toAmount) / 1e6;
-    if (usdc > 0) candidates.push({ priceUsd: usdc, source: "onchainos" });
-  }
-  if (uniQuote && uniQuote.toAmount && uniQuote.toAmount !== "0") {
-    const usdc = Number(uniQuote.toAmount) / 1e6;
-    if (usdc > 0) candidates.push({ priceUsd: usdc, source: "uniswap" });
-  }
+  const pushQuote = (q: { toAmount?: string } | null, source: "onchainos" | "uniswap") => {
+    if (!q || !q.toAmount || q.toAmount === "0") return;
+    const stableUsd = Number(q.toAmount) / 1e6; // both USDC and USDT are 6 decimals
+    if (stableUsd > 0 && isFinite(stableUsd)) candidates.push({ priceUsd: stableUsd, source });
+  };
+  pushQuote(osUsdc, "onchainos");
+  pushQuote(osUsdt, "onchainos");
+  pushQuote(uniUsdc, "uniswap");
+  pushQuote(uniUsdt, "uniswap");
 
   if (candidates.length === 0) return null;
-  // Prefer the higher quote — that's what the user would actually get.
+  // Best execution = highest USD output for 1 token.
   candidates.sort((a, b) => b.priceUsd - a.priceUsd);
   return candidates[0];
 }
