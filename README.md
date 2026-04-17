@@ -72,11 +72,42 @@ $ node dist/index.js analyze USDT OKB 1000000 0xWallet
 ```bash
 $ node dist/index.js nl "swap half my USDT for OKB if price is below 55"
 
-Understood: Swap 50% of USDT for OKB (if price below $55)
+Understood: Swap 50% of USDT for OKB (if OKB price below $55)
 Resolved amount: 500000000 (percentage of USDT balance)
 Price condition met: current $50.1234
 [proceeds with swap...]
 ```
+
+### All Supported Phrasings
+
+The `nl` parser is forgiving — it understands dozens of ways to say the same thing:
+
+| Category | Examples |
+|---|---|
+| **Basic** | `swap 100 USDT for OKB`, `convert 10 USDT to USDC`, `sell 50 USDT for WETH`, `100 USDT to OKB` |
+| **Slangy** | `flip 5 OKB to USDT`, `dump all my USDT into OKB`, `yeet 100 USDT into OKB`, `ape 10 USDT into OKB`, `turn 50 USDT into OKB` |
+| **Portions** | `swap half my USDT to OKB`, `swap all my WETH for USDT`, `25% of my OKB to USDT`, `a quarter of my USDT to OKB`, `two thirds of my OKB for USDT`, `my entire USDT balance to OKB` |
+| **Dollar value** | `swap $5 worth of OKB to USDT`, `$20 of OKB to USDT`, `swap $100 of USDT to OKB` (resolved at live price) |
+| **Conditional** | `swap 100 USDT for OKB if price is below 50`, `swap 1 USDT to OKB if price above $55`, `swap 100 USDT for OKB once price drops to 40`, `swap 100 USDT to OKB when price is above 60` |
+| **Buy-side** | `buy OKB with 100 USDT`, `purchase OKB using 50 USDT` |
+
+Unknown tokens, same-token pairs, and unresolvable amounts return structured warnings. **Insufficient balance is caught up front** — the router refuses to build a transaction it can't pay for, instead of getting a cryptic on-chain revert.
+
+## Live Prices
+
+```bash
+$ node dist/index.js price OKB
+
+=== Live Price: OKB ===
+  Price:        $50.123456
+  24h Change:   +2.34%
+  24h Volume:   $12.45M
+  Liquidity:    $8.90M
+  Market Cap:   $1.23B
+  Source:       OKX OnchainOS DEX market API
+```
+
+Price data comes from the OKX OnchainOS DEX market API, the same source OKX's own UIs use on X Layer. (Jupiter is Solana-only and not applicable for X Layer routing.)
 
 ## Quick Start
 

@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+
+
 import {
   OkxCredentials,
   SwapRequest,
   SwapResult,
   TOKENS,
+  TOKEN_DECIMALS,
   toMinimalUnits,
 } from "./types";
 import { findBestRoute, formatComparison } from "./router";
@@ -42,6 +45,53 @@ function resolveToken(token: string): string {
   const addr = SYMBOL_MAP[token.toUpperCase()];
   if (!addr) throw new Error(`Unknown token symbol: ${token}. Use a contract address instead.`);
   return addr;
+}
+
+/**
+ * Check if a wallet has enough of a token to spend a given minimal-unit amount.
+ * Returns a structured result used to show a clear "Insufficient balance" message.
+ */
+export async function checkBalance(
+  okxCreds: OkxCredentials,
+  walletAddress: string,
+  tokenAddress: string,
+  neededMinimalUnits: string
+): Promise<{
+  sufficient: boolean;
+  symbol: string;
+  neededReadable: string;
+  haveReadable: string;
+  haveMinimalUnits: string;
+}> {
+  const portfolio = await portfolioMod.getPortfolio(okxCreds, walletAddress);
+  const token = portfolio.tokens.find(
+    (t) => t.tokenAddress.toLowerCase() === tokenAddress.toLowerCase()
+  );
+  const symbol = token?.symbol || resolveSymbol(tokenAddress);
+  const decimals = TOKEN_DECIMALS[tokenAddress.toLowerCase()] ?? 18;
+
+  const have = token ? BigInt(token.balance || "0") : BigInt(0);
+  let need: bigint;
+  try {
+    need = BigInt(neededMinimalUnits);
+  } catch {
+    need = BigInt(0);
+  }
+
+  const fmt = (n: bigint) => {
+    const s = n.toString().padStart(decimals + 1, "0");
+    const whole = s.slice(0, -decimals) || "0";
+    const frac = s.slice(-decimals).replace(/0+$/, "");
+    return frac ? `${whole}.${frac}` : whole;
+  };
+
+  return {
+    sufficient: have >= need && need > BigInt(0),
+    symbol,
+    neededReadable: fmt(need),
+    haveReadable: fmt(have),
+    haveMinimalUnits: have.toString(),
+  };
 }
 
 function resolveSymbol(address: string): string {
@@ -180,6 +230,23 @@ export async function swapViaBestRoute(
   const walletInfo = await getWalletInfo(wallet);
   console.log(`Wallet: ${walletInfo.address} (${walletInfo.balanceOKB} OKB)\n`);
 
+  // Insufficient balance guard (skipped for native OKB; ethers-level gas check handles that)
+  const isNative = fromAddr.toLowerCase() === TOKENS.NATIVE_OKB.toLowerCase();
+  if (!isNative) {
+    const bal = await checkBalance(okxCreds, wallet.address, fromAddr, amount);
+    if (!bal.sufficient) {
+      return {
+        success: false,
+        source: "onchainos",
+        fromToken: fromAddr,
+        toToken: toAddr,
+        fromAmount: amount,
+        toAmount: "0",
+        error: `Insufficient balance. Needed ${bal.neededReadable} ${bal.symbol}, have ${bal.haveReadable} ${bal.symbol}.`,
+      };
+    }
+  }
+
   // Auto-calculate slippage if not provided
   if (slippagePercent === undefined) {
     console.log("Calculating smart slippage...");
@@ -242,19 +309,40 @@ export async function swapFromNaturalLanguage(
     return { error: "Could not parse swap intent", warnings };
   }
 
-  // Handle percentage/all — need portfolio to compute actual amount
+  // Resolve amount to minimal units depending on amountType.
   let amount = intent.amount;
+  const wallet = createWallet(privateKey);
+
   if (intent.amountType === "exact") {
     // Convert human-readable amount (e.g. "0.5") to minimal units (e.g. "500000")
     amount = toMinimalUnits(intent.amount, intent.fromToken);
+  } else if (intent.amountType === "dollar") {
+    // Convert a USD value to token amount using live price, then to minimal units.
+    // Native OKB placeholder has no market listing; use WOKB for the quote.
+    const priceLookupAddr = intent.fromToken.toLowerCase() === TOKENS.NATIVE_OKB.toLowerCase()
+      ? TOKENS.WOKB
+      : intent.fromToken;
+    const priceData = await market.getPrice(okxCreds, priceLookupAddr);
+    if (!priceData) {
+      return { error: `Could not fetch live price for source token to resolve $${intent.amount} amount`, warnings: [] };
+    }
+    const price = parseFloat(priceData.price);
+    if (!(price > 0)) {
+      return { error: `Invalid live price returned for source token`, warnings: [] };
+    }
+    const dollars = parseFloat(intent.amount);
+    const tokenAmount = dollars / price;
+    const humanAmount = tokenAmount.toFixed(18).replace(/0+$/, "").replace(/\.$/, "");
+    amount = toMinimalUnits(humanAmount, intent.fromToken);
+    console.log(`Resolved $${dollars.toFixed(2)} at live price $${price.toFixed(6)} -> ${humanAmount} tokens\n`);
   } else {
-    const wallet = createWallet(privateKey);
+    // percentage or all — need portfolio
     const portfolio = await portfolioMod.getPortfolio(okxCreds, wallet.address);
     const token = portfolio.tokens.find(
       (t) => t.tokenAddress.toLowerCase() === intent.fromToken.toLowerCase()
     );
     if (!token) {
-      return { error: `Token not found in wallet: ${intent.fromToken}`, warnings: [] };
+      return { error: `Token not found in wallet: ${intent.fromToken}. Insufficient balance or unsupported token.`, warnings: [] };
     }
     const fullBalance = BigInt(token.balance);
     if (intent.amountType === "all") {
@@ -266,9 +354,22 @@ export async function swapFromNaturalLanguage(
     console.log(`Resolved amount: ${amount} (${intent.amountType} of ${token.symbol} balance)\n`);
   }
 
+  // Balance check — refuse upfront if the wallet doesn't have enough.
+  const balanceCheck = await checkBalance(okxCreds, wallet.address, intent.fromToken, amount);
+  if (!balanceCheck.sufficient) {
+    return {
+      error: `Insufficient balance. Needed ${balanceCheck.neededReadable} ${balanceCheck.symbol}, have ${balanceCheck.haveReadable} ${balanceCheck.symbol}.`,
+      warnings: [],
+    };
+  }
+
   // Check price condition
   if (intent.condition) {
-    const price = await market.getPrice(okxCreds, intent.condition.tokenAddress);
+    // Fall back to WOKB if the condition targets native OKB (no market listing).
+    const condAddr = intent.condition.tokenAddress.toLowerCase() === TOKENS.NATIVE_OKB.toLowerCase()
+      ? TOKENS.WOKB
+      : intent.condition.tokenAddress;
+    const price = await market.getPrice(okxCreds, condAddr);
     if (!price) {
       return { error: "Could not fetch current price for condition check", warnings: [] };
     }
@@ -307,15 +408,47 @@ Commands:
   swap <from> <to> <amount>
       Execute swap via best route with smart auto-slippage
 
+  price <token>
+      Show live price for a token (OKB, USDT, USDC, WETH, or 0x...)
+
   nl "<natural language command>"
-      Parse and execute a natural language swap command
-      Examples:
-        "swap 100 USDT for OKB"
-        "convert half my USDT to OKB"
-        "swap 50 USDT to OKB if price is below 50"
+      Parse and execute a natural language swap command.
+      The parser accepts many phrasings — see NL EXAMPLES below.
 
   portfolio <wallet>
       Show wallet balances on X Layer
+
+NL EXAMPLES:
+  Basic:
+    "swap 100 USDT for OKB"             "swap 0.5 OKB to USDT"
+    "convert 10 USDT to USDC"           "sell 50 USDT for WETH"
+    "trade 5 OKB for USDT"              "exchange 20 USDC to USDT"
+
+  Slangy:
+    "flip 5 OKB to USDT"                "dump all my USDT into OKB"
+    "yeet 100 USDT into OKB"            "move 20 USDT to OKB"
+    "turn 50 USDT into OKB"             "ape 10 USDT into OKB"
+
+  Portions of balance:
+    "swap half my USDT to OKB"          "swap all my WETH for USDT"
+    "swap my entire USDT balance to OKB"
+    "convert 25% of my OKB to USDT"     "swap 10% of my USDT for OKB"
+    "a quarter of my USDT to OKB"       "a tenth of my OKB for USDT"
+    "two thirds of my OKB for USDT"
+
+  Dollar-value:
+    "swap $5 worth of OKB to USDT"      "swap $100 of USDT to OKB"
+    "$20 of OKB to USDT"
+
+  Conditional (waits/aborts if condition not met):
+    "swap 100 USDT for OKB if price is below 50"
+    "swap 100 USDT to OKB when price is above 60"
+    "swap 50 USDT to OKB if OKB is below $45"
+    "swap 1 USDT to OKB if price above $55"
+    "swap 100 USDT for OKB once price drops to 40"
+
+  Buy-side:
+    "buy OKB with 100 USDT"             "purchase OKB using 50 USDT"
 
 Environment variables required:
   OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE
@@ -387,6 +520,37 @@ Environment variables required:
       }
       process.exit(1);
     }
+  } else if (command === "price") {
+    const [, tokenArg] = args;
+    if (!tokenArg) {
+      console.error("Usage: price <token>  (e.g. price OKB)");
+      process.exit(1);
+    }
+    const tokenAddrRaw = resolveToken(tokenArg);
+    const tokenSym = resolveSymbol(tokenAddrRaw);
+    // Native OKB placeholder has no market listing; fall back to WOKB for
+    // price/market queries since they're 1:1.
+    const tokenAddr = tokenAddrRaw.toLowerCase() === TOKENS.NATIVE_OKB.toLowerCase()
+      ? TOKENS.WOKB
+      : tokenAddrRaw;
+    const [priceData, tradingInfo] = await Promise.all([
+      market.getPrice(okxCreds, tokenAddr),
+      market.getTradingInfo(okxCreds, tokenAddr).catch(() => null),
+    ]);
+    if (!priceData) {
+      console.error(`Could not fetch live price for ${tokenSym}.`);
+      process.exit(1);
+    }
+    console.log(`\n=== Live Price: ${tokenSym} ===`);
+    console.log(`  Price:        $${parseFloat(priceData.price).toFixed(6)}`);
+    if (tradingInfo) {
+      console.log(`  24h Change:   ${parseFloat(tradingInfo.priceChange24H).toFixed(2)}%`);
+      console.log(`  24h Volume:   $${(parseFloat(tradingInfo.volume24H) / 1e6).toFixed(2)}M`);
+      console.log(`  Liquidity:    $${(parseFloat(tradingInfo.liquidity) / 1e6).toFixed(2)}M`);
+      console.log(`  Market Cap:   $${(parseFloat(tradingInfo.marketCap) / 1e9).toFixed(2)}B`);
+    }
+    console.log(`  Source:       OKX OnchainOS DEX market API`);
+    console.log();
   } else if (command === "portfolio") {
     const [, walletAddress] = args;
     if (!walletAddress) {
@@ -407,3 +571,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+

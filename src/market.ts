@@ -71,10 +71,10 @@ export async function getPrice(
   tokenAddress: string
 ): Promise<TokenPrice | null> {
   const path = `/dex/market/price`;
-  const body = JSON.stringify({
-    chainIndex: XLAYER_CHAIN_ID,
-    tokenContractAddress: tokenAddress,
-  });
+  // OKX price endpoint expects a JSON array of {chainIndex, tokenContractAddress}
+  const body = JSON.stringify([
+    { chainIndex: XLAYER_CHAIN_ID, tokenContractAddress: tokenAddress },
+  ]);
   const url = OKX_API_BASE + path;
   const headers = buildHeaders(creds, "POST", path, body);
 
@@ -100,10 +100,10 @@ export async function getTradingInfo(
   tokenAddress: string
 ): Promise<TokenTradingInfo | null> {
   const path = `/dex/market/price-info`;
-  const body = JSON.stringify({
-    chainIndex: XLAYER_CHAIN_ID,
-    tokenContractAddress: tokenAddress,
-  });
+  // OKX price-info endpoint expects a JSON array of {chainIndex, tokenContractAddress}
+  const body = JSON.stringify([
+    { chainIndex: XLAYER_CHAIN_ID, tokenContractAddress: tokenAddress },
+  ]);
   const url = OKX_API_BASE + path;
   const headers = buildHeaders(creds, "POST", path, body);
 

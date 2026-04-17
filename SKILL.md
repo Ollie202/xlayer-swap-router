@@ -54,9 +54,52 @@ node dist/index.js swap USDT OKB 1000000
 node dist/index.js nl "swap half my USDT for OKB"
 node dist/index.js nl "swap 100 USDT to OKB if price is below 50"
 
+# Live price (24h change, volume, liquidity, market cap)
+node dist/index.js price OKB
+
 # Show wallet holdings on X Layer
 node dist/index.js portfolio 0xWallet
 ```
+
+## Supported Natural Language Phrasings
+
+The `nl` command accepts a forgiving range of English. Examples (all parse to the same intent):
+
+**Basic:**
+- `swap 100 USDT for OKB` / `swap 0.5 OKB to USDT`
+- `convert 10 USDT to USDC` / `sell 50 USDT for WETH`
+- `trade 5 OKB for USDT` / `exchange 20 USDC to USDT`
+- `100 USDT to OKB` (verb optional)
+
+**Slangy / crypto-native:**
+- `flip 5 OKB to USDT` / `dump all my USDT into OKB`
+- `yeet 100 USDT into OKB` / `ape 10 USDT into OKB`
+- `move 20 USDT to OKB` / `turn 50 USDT into OKB`
+- `change 100 USDT to USDC` / `switch 10 USDT for OKB`
+
+**Portions of balance:**
+- `swap half my USDT to OKB`
+- `swap all my WETH for USDT` / `swap my entire USDT balance to OKB`
+- `convert 25% of my OKB to USDT` / `swap 10% of my USDT for OKB`
+- `a quarter of my USDT to OKB` / `a tenth of my OKB for USDT`
+- `two thirds of my OKB for USDT`
+
+**Dollar-value (resolved at live price):**
+- `swap $5 worth of OKB to USDT`
+- `swap $100 of USDT to OKB`
+- `$20 of OKB to USDT`
+
+**Conditional (only fires when condition holds):**
+- `swap 100 USDT for OKB if price is below 50`
+- `swap 100 USDT to OKB when price is above 60`
+- `swap 50 USDT to OKB if OKB is below $45`
+- `swap 1 USDT to OKB if price above $55`
+- `swap 100 USDT for OKB once price drops to 40`
+
+**Buy-side:**
+- `buy OKB with 100 USDT` / `purchase OKB using 50 USDT`
+
+Unknown tokens, same-token pairs, or unresolvable amounts return a structured warning instead of a crash. Insufficient balance is detected up front before any transaction is built.
 
 ## Library Usage
 
