@@ -299,11 +299,27 @@ export async function getLivePriceUsd(
   // small enough that price impact doesn't distort the answer.
   const oneUnit = (BigInt(10) ** BigInt(tokenDecimals)).toString();
 
-  // Query both aggregators against both USDC and USDT and take the best
-  // (highest) quote as the USD price. Parallel, so no extra latency.
+  // Query BOTH aggregators and take the highest USD output as the price
+  // (best-execution pricing — matches what the chain would actually pay).
+  //
+  // Uniswap pools on X Layer can be dislocated from real market price (thin
+  // liquidity, arbitrage friction), so trusting Uniswap alone gives bad
+  // prices for OKB in particular. OKX aggregator sees the full X Layer
+  // liquidity picture and is normally the right answer.
+  //
+  // OKX quote endpoint may be geoblocked from some networks — if so, we
+  // cap its wait at 4s and fall through to Uniswap so blocked users still
+  // get *a* price (possibly dislocated, but non-zero).
+  const OKX_TIMEOUT_MS = 4000;
+  const withTimeout = <T,>(p: Promise<T | null>, ms: number): Promise<T | null> =>
+    Promise.race([
+      p,
+      new Promise<T | null>((resolve) => setTimeout(() => resolve(null), ms)),
+    ]);
+
   const [osUsdc, osUsdt, uniUsdc, uniUsdt] = await Promise.all([
-    onchainos.getQuote(creds, okxSideAddr, TOKENS.USDC, oneUnit).catch(() => null),
-    onchainos.getQuote(creds, okxSideAddr, TOKENS.USDT, oneUnit).catch(() => null),
+    withTimeout(onchainos.getQuote(creds, okxSideAddr, TOKENS.USDC, oneUnit).catch(() => null), OKX_TIMEOUT_MS),
+    withTimeout(onchainos.getQuote(creds, okxSideAddr, TOKENS.USDT, oneUnit).catch(() => null), OKX_TIMEOUT_MS),
     uniswap
       .getQuote(uniSideAddr, TOKENS.USDC, oneUnit, "0x0000000000000000000000000000000000000001")
       .catch(() => null),

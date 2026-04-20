@@ -1,4 +1,4 @@
-import { OkxCredentials, SwapQuote, TOKENS, XLAYER_CHAIN_ID } from "./types";
+import { OkxCredentials, SwapQuote, TOKENS, XLAYER_CHAIN_ID, fromMinimalUnits } from "./types";
 import * as onchainos from "./onchainos";
 
 // Common intermediate tokens for multi-hop routing on X Layer
@@ -110,10 +110,15 @@ export function formatMultiHopRoutes(
   const lines: string[] = [];
   lines.push("=== Multi-Hop Route Analysis ===\n");
 
+  const toToken = directQuote?.toToken || routes[0]?.path[routes[0].path.length - 1];
+  const toSymbol = toToken ? resolveSymbol(toToken) : "";
+  const fmtOut = (raw: string) => toToken ? `${fromMinimalUnits(raw, toToken)} ${toSymbol}` : raw;
+  const fmtGas = (g: string) => g && g !== "0" ? `~${Number(g).toLocaleString("en-US")} units` : "-";
+
   if (directQuote) {
-    lines.push(`[DIRECT] ${directQuote.fromToken.slice(0, 8)}... -> ${directQuote.toToken.slice(0, 8)}...`);
-    lines.push(`  Output: ${directQuote.toAmount}`);
-    lines.push(`  Gas:    ${directQuote.estimatedGas}`);
+    lines.push(`[DIRECT] ${resolveSymbol(directQuote.fromToken)} -> ${resolveSymbol(directQuote.toToken)}`);
+    lines.push(`  Output: ${fmtOut(directQuote.toAmount)}`);
+    lines.push(`  Gas:    ${fmtGas(directQuote.estimatedGas)}`);
     lines.push("");
   }
 
@@ -129,25 +134,25 @@ export function formatMultiHopRoutes(
     const tag = i === 0 && isBest ? " ** BETTER THAN DIRECT **" : "";
 
     lines.push(`[HOP ${i + 1}] ${r.pathSymbols.join(" -> ")}${tag}`);
-    lines.push(`  Output: ${r.totalOutput}`);
-    lines.push(`  Gas:    ${r.estimatedTotalGas}`);
+    lines.push(`  Output: ${fmtOut(r.totalOutput)}`);
+    lines.push(`  Gas:    ${fmtGas(r.estimatedTotalGas)}`);
     lines.push(`  Path:   ${r.pathSymbols.join(" -> ")}`);
     lines.push("");
   }
 
-  // Compare best hop vs direct
+  // Compare best hop vs direct (in human-readable output units)
   if (directQuote && routes.length > 0) {
     const directAmt = BigInt(directQuote.toAmount);
     const hopAmt = BigInt(routes[0].totalOutput);
     if (hopAmt > directAmt) {
-      const diff = hopAmt - directAmt;
+      const diff = (hopAmt - directAmt).toString();
       lines.push(
-        `Best multi-hop route gives ${diff.toString()} more output than direct swap!`
+        `Best multi-hop route gives ${fmtOut(diff)} more output than direct swap!`
       );
     } else {
-      const diff = directAmt - hopAmt;
+      const diff = (directAmt - hopAmt).toString();
       lines.push(
-        `Direct swap is better by ${diff.toString()} — no need for multi-hop.`
+        `Direct swap is better by ${fmtOut(diff)} — no need for multi-hop.`
       );
     }
   }

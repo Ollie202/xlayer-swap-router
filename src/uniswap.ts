@@ -72,9 +72,9 @@ export async function getQuote(
 
     if (!res.ok) {
       const errText = await res.text();
-      // Uniswap may not support X Layer — this is expected
+      // Uniswap may not support X Layer for this pair — expected; silently
+      // return null so the route comparison can render "no route on X Layer".
       if (res.status === 404 || res.status === 400) {
-        console.log("Uniswap: X Layer route not available for this pair");
         return null;
       }
       console.error(`Uniswap quote error: ${res.status} ${errText}`);
@@ -117,6 +117,47 @@ export async function getQuote(
     };
   } catch (err) {
     console.error("Uniswap quote error:", err);
+    return null;
+  }
+}
+
+/**
+ * Ask Uniswap's Trading API whether an ERC-20 approval is needed for this
+ * swap and, if so, return the approval transaction to send. Returns `null`
+ * if no approval is required (already approved, or native token).
+ *
+ * Per Uniswap's official swap-integration skill, POST /check_approval with
+ * the walletAddress, token, amount, and chainId. If the response contains
+ * an `approval` object with tx data, send it before submitting the swap.
+ */
+export async function getApproval(
+  fromToken: string,
+  amount: string,
+  walletAddress: string
+): Promise<{ to: string; data: string; value: string } | null> {
+  try {
+    const body = {
+      walletAddress,
+      token: fromToken,
+      amount,
+      chainId: parseInt(XLAYER_CHAIN_ID),
+    };
+    const res = await fetch(`${UNISWAP_API_BASE}/check_approval`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    // Shape per Uniswap docs: { approval: { to, data, value } | null, ... }
+    const approval = data.approval;
+    if (!approval || !approval.to || !approval.data) return null;
+    return {
+      to: approval.to,
+      data: approval.data,
+      value: approval.value || "0",
+    };
+  } catch {
     return null;
   }
 }

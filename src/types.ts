@@ -39,6 +39,46 @@ export function toMinimalUnits(humanAmount: string, tokenAddress: string): strin
   return combined;
 }
 
+/**
+ * Inverse of toMinimalUnits — turn a raw minimal-unit amount back into a
+ * human-readable decimal string (e.g. "1500000" USDT → "1.5"). Trims
+ * trailing zeros. Used everywhere amounts are shown to the user.
+ */
+export function fromMinimalUnits(minimalAmount: string | bigint, tokenAddress: string): string {
+  const decimals = TOKEN_DECIMALS[tokenAddress.toLowerCase()] ?? 18;
+  const s = typeof minimalAmount === "bigint" ? minimalAmount.toString() : minimalAmount;
+  if (!s || s === "0") return "0";
+  const padded = s.padStart(decimals + 1, "0");
+  const whole = padded.slice(0, -decimals) || "0";
+  const frac = padded.slice(-decimals).replace(/0+$/, "");
+  return frac ? `${whole}.${frac}` : whole;
+}
+
+/**
+ * Human-facing label for an aggregator source. Used in CLI output so
+ * users see "OKX OnchainOS" and "Uniswap" (proper case) instead of the
+ * internal lowercase identifiers.
+ */
+export function sourceLabel(source: "onchainos" | "uniswap" | "stable"): string {
+  if (source === "onchainos") return "OKX OnchainOS";
+  if (source === "uniswap") return "Uniswap";
+  return "Stablecoin";
+}
+
+/**
+ * Map a known token address back to its short symbol (OKB, USDT, etc.)
+ * for display. Falls back to a truncated address for unknown tokens.
+ */
+export function resolveSymbol(address: string): string {
+  const lower = address.toLowerCase();
+  if (lower === TOKENS.NATIVE_OKB.toLowerCase()) return "OKB";
+  if (lower === TOKENS.WOKB.toLowerCase()) return "WOKB";
+  if (lower === TOKENS.USDT.toLowerCase()) return "USDT";
+  if (lower === TOKENS.USDC.toLowerCase()) return "USDC";
+  if (lower === TOKENS.WETH.toLowerCase()) return "WETH";
+  return address.slice(0, 8) + "...";
+}
+
 // OnchainOS API
 export const OKX_API_BASE = "https://web3.okx.com/api/v6";
 
@@ -77,6 +117,12 @@ export interface SwapResult {
   fromAmount: string;
   toAmount: string;
   error?: string;
+  /**
+   * Set when the swap was saved to the pending store instead of executed
+   * (a conditional whose condition isn't met yet). Lets the CLI skip the
+   * "Successfully swapped" message — nothing was actually swapped.
+   */
+  pendingId?: string;
 }
 
 export interface RouteComparison {
