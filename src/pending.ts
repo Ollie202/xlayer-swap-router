@@ -97,9 +97,17 @@ export function formatPending(list: PendingSwap[]): string {
     lines.push(`       "${s.nlInput}"`);
     lines.push("");
   });
-  lines.push(`Run \`xlayer-swap watch\` to monitor prices and auto-execute when conditions are met.`);
-  lines.push(`Cancel one:   xlayer-swap cancel 1       (number from the list above)`);
-  lines.push(`Cancel all:   xlayer-swap cancel all`);
+  const n = list.length;
+  const range = n === 1 ? "1" : `1-${n}`;
+  const exampleMid = n >= 2 ? Math.ceil(n / 2) : 1;
+  const watcherRunning = getRunningWatchPid() !== null;
+  if (watcherRunning) {
+    lines.push(`Background watcher: running — swaps will auto-execute when conditions are met.`);
+  } else {
+    lines.push(`Background watcher: not running. Run \`swap watch\` to start monitoring.`);
+  }
+  lines.push(`Cancel one:   swap cancel <number>     (any number from ${range}, e.g. \`swap cancel ${exampleMid}\`)`);
+  lines.push(`Cancel all:   swap cancel all`);
   return lines.join("\n");
 }
 
@@ -126,4 +134,41 @@ export function removeAll(): number {
   const n = loadPending().length;
   savePending([]);
   return n;
+}
+
+function pidPath(): string {
+  return path.join(storeDir(), "watch.pid");
+}
+
+/**
+ * Returns the PID of a running watcher, or null if none is alive.
+ * Uses process.kill(pid, 0) which doesn't actually signal — it just
+ * probes whether the pid exists and we have permission to signal it.
+ */
+export function getRunningWatchPid(): number | null {
+  try {
+    if (!fs.existsSync(pidPath())) return null;
+    const raw = fs.readFileSync(pidPath(), "utf8").trim();
+    const pid = parseInt(raw, 10);
+    if (!pid || Number.isNaN(pid)) return null;
+    try {
+      process.kill(pid, 0); // probe only
+      return pid;
+    } catch {
+      // Stale pid file — clean it up.
+      try { fs.unlinkSync(pidPath()); } catch {}
+      return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+export function writeWatchPid(pid: number): void {
+  ensureDir();
+  fs.writeFileSync(pidPath(), String(pid), "utf8");
+}
+
+export function clearWatchPid(): void {
+  try { fs.unlinkSync(pidPath()); } catch {}
 }

@@ -398,17 +398,29 @@ export async function swapFromNaturalLanguage(
     if (fullBalance === BigInt(0)) {
       return { error: `No balance found for source token in wallet. Insufficient balance.`, warnings: [] };
     }
+    // Native OKB pays for gas — can't send 100% or the tx can't pay fees.
+    // Reserve a small buffer (0.002 OKB ≈ plenty for a swap tx on X Layer).
+    const isNativeFrom = intent.fromToken.toLowerCase() === TOKENS.NATIVE_OKB.toLowerCase();
+    const GAS_BUFFER_NATIVE = BigInt("2000000000000000"); // 0.002 OKB (18 dp)
+    let spendable = fullBalance;
+    if (isNativeFrom) {
+      spendable = fullBalance > GAS_BUFFER_NATIVE ? fullBalance - GAS_BUFFER_NATIVE : BigInt(0);
+      if (spendable === BigInt(0)) {
+        return { error: `Not enough OKB to swap after reserving gas. Need > 0.002 OKB in the wallet.`, warnings: [] };
+      }
+    }
     if (intent.amountType === "all") {
-      amount = fullBalance.toString();
+      amount = spendable.toString();
     } else {
       // Use basis points (0-10000) so fractional percentages like 33.3 aren't lost.
       const pct = parseFloat(intent.amount);
       const bps = BigInt(Math.floor(pct * 100));
-      amount = ((fullBalance * bps) / BigInt(10000)).toString();
+      amount = ((spendable * bps) / BigInt(10000)).toString();
     }
     const sym = resolveSymbol(intent.fromToken);
     const human = fromMinimalUnits(amount, intent.fromToken);
-    console.log(`Resolved amount: ${human} ${sym} (${intent.amountType} of ${sym} balance)\n`);
+    const gasNote = isNativeFrom ? ` — reserved 0.002 ${sym} for gas` : "";
+    console.log(`Resolved amount: ${human} ${sym} (${intent.amountType} of ${sym} balance${gasNote})\n`);
   }
 
   // Balance check — refuse upfront if the wallet doesn't have enough.
@@ -491,12 +503,18 @@ export async function swapFromNaturalLanguage(
         walletAddress: wallet.address,
         condition: cond,
       });
+      const daemonStatus = ensureWatchDaemon();
       console.log(`\nSaved. It will auto-execute when the condition is met.`);
+      if (daemonStatus === "spawned") {
+        console.log(`Auto-started a background watcher — no extra command needed.`);
+      } else if (daemonStatus === "already-running") {
+        console.log(`Background watcher already running — your swap is being monitored.`);
+      } else {
+        console.log(`Note: auto-start failed. Run \`swap watch\` manually to monitor.`);
+      }
       console.log(`\nNext steps:`);
-      console.log(`  xlayer-swap pending        # see your numbered list of pending swaps`);
-      console.log(`  xlayer-swap cancel 1       # cancel the first one on that list`);
-      console.log(`  xlayer-swap cancel all     # wipe every pending swap`);
-      console.log(`  xlayer-swap watch          # keep running to auto-execute when condition hits`);
+      console.log(`  swap pending        # see your numbered list of pending swaps`);
+      console.log(`  swap cancel all     # wipe every pending swap`);
       return {
         success: true,
         source: "onchainos",
@@ -518,12 +536,60 @@ export async function swapFromNaturalLanguage(
  * separate terminal / tmux / systemd unit. Safe to restart; the pending store
  * is the source of truth.
  */
+/**
+ * Ensures a background `watch` process is running. Called after a pending
+ * swap is saved so the user doesn't have to remember to start a watcher.
+ * Returns "already-running" | "spawned" | "failed".
+ *
+ * The spawned child is fully detached — it survives closing the parent's
+ * terminal. It inherits the current env (private key, OKX creds, etc.).
+ */
+export function ensureWatchDaemon(): "already-running" | "spawned" | "failed" {
+  try {
+    const existing = pendingStore.getRunningWatchPid();
+    if (existing) return "already-running";
+
+    // Must have a private key to execute — if missing, don't spawn.
+    if (!process.env.WALLET_PRIVATE_KEY) return "failed";
+
+    const { spawn } = require("child_process");
+    const path = require("path");
+    const fs = require("fs");
+    const os = require("os");
+
+    const logDir = path.join(os.homedir(), ".xlayer-swap");
+    if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+    const logFile = path.join(logDir, "watch.log");
+    const out = fs.openSync(logFile, "a");
+    const err = fs.openSync(logFile, "a");
+
+    // Re-invoke ourselves with the `watch` subcommand. process.argv[1] is
+    // the currently-running script (dist/index.js when installed globally).
+    const child = spawn(process.execPath, [process.argv[1], "watch"], {
+      detached: true,
+      stdio: ["ignore", out, err],
+      env: process.env,
+      windowsHide: true,
+    });
+    child.unref();
+    return "spawned";
+  } catch {
+    return "failed";
+  }
+}
+
 export async function watchPending(
   privateKey: string,
   okxCreds: OkxCredentials,
   pollIntervalMs: number = 30_000
 ): Promise<void> {
   console.log(`Starting pending-swap watcher. Polling every ${Math.round(pollIntervalMs / 1000)}s. Ctrl+C to stop.\n`);
+  // Record our pid so `ensureWatchDaemon()` doesn't spawn duplicates.
+  pendingStore.writeWatchPid(process.pid);
+  const cleanup = () => { pendingStore.clearWatchPid(); process.exit(0); };
+  process.on("SIGINT", cleanup);
+  process.on("SIGTERM", cleanup);
+  process.on("exit", () => pendingStore.clearWatchPid());
   // Log a heartbeat immediately so the user knows it's alive.
   const tick = async () => {
     const list = pendingStore.loadPending();
@@ -729,9 +795,11 @@ Cross-platform:
     command = "nl";
     nlShorthand = true;
   } else if (!KNOWN_COMMANDS.has(command)) {
-    // Unknown first token — assume NL if it contains any swap verb.
-    const joined = args.join(" ").toLowerCase();
-    if (/\b(swap|convert|trade|sell|buy|flip|yeet|dump|turn|move|exchange|ape|purchase)\b/.test(joined)) {
+    // Unknown first token — route to the NL parser. It has its own
+    // clear error messages for gibberish, and this lets bare forms like
+    // `swap 10% of my USDT to OKB` work on Windows where npm wraps the
+    // binary via a .cmd shim (so process.argv[1] isn't the bin name).
+    if (command && !command.startsWith("-")) {
       command = "nl";
       nlShorthand = true;
     }

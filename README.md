@@ -47,9 +47,21 @@ Built for the OKX Build X hackathon, Skill Arena track.
 
 ## Quick start — first-time setup
 
-Follow the steps in order. You'll be swapping tokens in about 5 minutes.
+Follow the steps in order. You'll be swapping tokens in about 5 minutes. If you've never used a command line before, **start with Step 0**.
 
 Works on Windows, macOS, and Linux. Most steps are identical across platforms; the only difference is where your `.env` file lives (Step 4) — that's clearly split below.
+
+---
+
+### Step 0. Open a terminal (skip if you already have one open)
+
+Everything in this guide is typed into a "terminal" (sometimes called a "command prompt" or "shell"). Here's how to open one:
+
+- **Windows:** press the `Windows` key, type `cmd`, press Enter. A black window opens — that's Command Prompt.
+- **macOS:** press `Cmd+Space`, type `terminal`, press Enter.
+- **Linux:** press `Ctrl+Alt+T`, or search "Terminal" in your application launcher.
+
+You'll type commands here for the rest of this guide. Copy each code block below, paste it in the terminal (right-click → paste on Windows; `Cmd+V` on macOS; `Ctrl+Shift+V` on Linux), then press Enter.
 
 ---
 
@@ -76,12 +88,12 @@ Install the tool globally so you can use it from any folder.
 npm install -g xlayer-swap-router
 ```
 
-What this does: downloads and installs the package from npm. Puts three commands on your PATH — `swap`, `xswap`, and `xlayer-swap` — all usable from any folder.
+What this does: downloads and installs the package from npm. Puts three commands on your PATH — `swap`, `xswap`, and `xlayer-swap` — all usable from any folder. **Just use `swap`** — it's the shortest and reads like plain English (`swap 1 usd of OKB to USDT`). The other two exist for teams that already have a `swap` on their PATH.
 
 Then verify the install worked:
 
 ```
-xlayer-swap --help
+swap --help
 ```
 
 What you should see: the full help text. If you see "command not found," close and reopen your terminal so it picks up the new PATH.
@@ -211,13 +223,13 @@ swap 1 usd of USDT to OKB if OKB is below 10
 What this does: creates a conditional swap. Since OKB isn't below `$10` right now, the tool will ask whether to save it to your pending list. Answer `y` to save it.
 
 ```
-xlayer-swap pending
+swap pending
 ```
 
 What this does: shows your numbered list of saved conditional swaps.
 
 ```
-xlayer-swap cancel 1
+swap cancel 1
 ```
 
 What this does: cancels the first swap on that list.
@@ -235,17 +247,17 @@ swap 1 usd of OKB to USDT
 swap 0.5 USDT to OKB
 swap half my USDT to OKB
 swap $5 of OKB to USDT if OKB above 100
-xlayer-swap pending
-xlayer-swap cancel 1
-xlayer-swap price OKB
-xlayer-swap portfolio 0xYourWalletAddress
+swap pending
+swap cancel 1
+swap price OKB
+swap portfolio 0xYourWalletAddress
 ```
 
 ### If something goes wrong after a restart
 
 | Problem | Fix |
 |---|---|
-| `'xlayer-swap' is not recognized` / `command not found` | Close and reopen your terminal. If that fails, rerun `npm install -g xlayer-swap-router`. |
+| `'swap' is not recognized` / `command not found` | Close and reopen your terminal. If that fails, rerun `npm install -g xlayer-swap-router`. |
 | `Error: Set OKX_API_KEY, ...` | Your `.env` file isn't being found. Confirm it exists at the right path (Step 4) — on Windows: `%USERPROFILE%\.xlayer-swap\.env`. On mac/linux: `~/.xlayer-swap/.env`. |
 | Want to change a key or add a new one | Just re-run the editor command from Step 4 (`notepad ...` or `nano ...`), make the edit, save, close. No reinstall needed. |
 | Want to update to the latest version | `npm install -g xlayer-swap-router@latest` |
@@ -254,12 +266,12 @@ xlayer-swap portfolio 0xYourWalletAddress
 
 If you saved a conditional swap and want it to actually execute when the condition hits, you need `watch` running somewhere. Pick the option that suits you:
 
-**Windows** — open a second Command Prompt window, run `xlayer-swap watch`, minimize it.
+**Windows** — open a second Command Prompt window, run `swap watch`, minimize it.
 
 **macOS/Linux** — use `tmux` so it survives closing your terminal:
 
 ```
-tmux new -s xswap -d 'xlayer-swap watch'
+tmux new -s xswap -d 'swap watch'
 ```
 
 To see what it's doing later: `tmux attach -t xswap`. Detach again with `Ctrl+B` then `D`.
@@ -296,20 +308,19 @@ What this does: clones the repo, installs dev dependencies, builds the TypeScrip
 
 ## All commands
 
-Every command below works identically whether you type `swap`, `xswap`, or `xlayer-swap` — they're all aliases.
+Every command below works identically whether you type `swap`, `xswap`, or `xlayer-swap` — they're all aliases for the same binary. Examples here use the short `swap` form.
 
 | Command | What it does |
 |---|---|
 | `swap <nl sentence>` | Parse and execute a natural-language swap. The headline feature. |
-| `xlayer-swap quote <from> <to> <amount> <wallet>` | Read-only. Compare OKX vs Uniswap quotes side-by-side. |
-| `xlayer-swap analyze <from> <to> <amount> <wallet>` | Read-only. Full analysis: market data, portfolio, smart slippage, multi-hop, AI advice. |
-| `xlayer-swap swap <from> <to> <amount>` | Execute swap with positional args (amount in minimal units). |
-| `xlayer-swap price <token>` | Live USD price for OKB / USDT / USDC / WETH (or any `0x...` address). |
-| `xlayer-swap portfolio <wallet>` | Wallet's X Layer token balances with USD values. |
-| `xlayer-swap pending` | List all saved conditional swaps, numbered 1, 2, 3... |
-| `xlayer-swap cancel <number\|all>` | Cancel the Nth saved swap, or wipe them all at once. |
-| `xlayer-swap watch` | Run a persistent monitor that auto-executes pending conditionals when their price condition is met. |
-| `xlayer-swap --help` | Full help text. |
+| `swap quote <from> <to> <amount> <wallet>` | Read-only. Compare OKX vs Uniswap quotes side-by-side. |
+| `swap analyze <from> <to> <amount> <wallet>` | Read-only. Full analysis: market data, portfolio, smart slippage, multi-hop, AI advice. |
+| `swap price <token>` | Live USD price for OKB / USDT / USDC / WETH (or any `0x...` address). |
+| `swap portfolio <wallet>` | Wallet's X Layer token balances with USD values. |
+| `swap pending` | List all saved conditional swaps, numbered 1, 2, 3... |
+| `swap cancel <number\|all>` | Cancel the Nth saved swap, or wipe them all at once. |
+| `swap watch` | Run a persistent monitor that auto-executes pending conditionals when their price condition is met. |
+| `swap --help` | Full help text. |
 
 **Read-only commands** (don't need `WALLET_PRIVATE_KEY`): `quote`, `analyze`, `price`, `portfolio`, `pending`, `cancel`.
 
@@ -351,25 +362,26 @@ When you write something like `swap 5 usd of USDT to OKB if OKB below 50`:
 
    Save to pending so it auto-executes when the condition is met? [Y/n]
    ```
-   - **Yes** → saved to `~/.xlayer-swap/pending.json` and the command exits.
+   - **Yes** → saved to `~/.xlayer-swap/pending.json` **and a background watcher auto-starts** to monitor prices. Nothing else for you to do.
    - **No**  → cancelled on the spot. Nothing saved. No transaction sent.
-3. To actually execute saved swaps later, run `xlayer-swap watch` in a persistent terminal (tmux, screen, systemd, `nohup`, or just a window you leave open). When the condition becomes true — in 5 minutes or 5 days — `watch` picks it up and executes it.
+3. The background watcher survives closing your terminal (it's fully detached). It polls prices every 30 seconds and fires the swap the moment your condition becomes true — whether that's in 5 minutes or 5 days.
 4. You can list or cancel saved swaps any time using simple numbers.
+5. Watcher logs go to `~/.xlayer-swap/watch.log` — peek at it any time to confirm it's alive.
 
 ### The commands
 
 | Command | Purpose |
 |---|---|
 | `swap 5 usd of USDT to OKB if OKB below 50` | Creates a conditional swap. Prompts to save-or-cancel if the condition isn't met. |
-| `xlayer-swap pending` | Lists every saved swap, **numbered 1, 2, 3...** with full details. |
-| `xlayer-swap cancel 1` | Cancels the first swap. Just the number from the list — nothing to memorize. |
-| `xlayer-swap cancel all` | Wipes every pending swap at once. |
-| `xlayer-swap watch` | Persistent price monitor. Executes any saved swap the moment its condition becomes true. Requires `WALLET_PRIVATE_KEY`. |
+| `swap pending` | Lists every saved swap, **numbered 1, 2, 3...** with full details. |
+| `swap cancel 1` | Cancels the first swap. Just the number from the list — nothing to memorize. |
+| `swap cancel all` | Wipes every pending swap at once. |
+| `swap watch` | Persistent price monitor. Executes any saved swap the moment its condition becomes true. Requires `WALLET_PRIVATE_KEY`. |
 
 ### Example flow
 
 ```
-> xlayer-swap pending
+> swap pending
 
 === Pending Conditional Swaps ===
 
@@ -383,10 +395,10 @@ When you write something like `swap 5 usd of USDT to OKB if OKB below 50`:
        created 2026-04-20T12:40:02.123Z
        "swap 0.01 OKB to USDT when price above 100"
 
-Cancel one:   xlayer-swap cancel 1       (number from the list above)
-Cancel all:   xlayer-swap cancel all
+Cancel one:   swap cancel 1       (number from the list above)
+Cancel all:   swap cancel all
 
-> xlayer-swap cancel 2
+> swap cancel 2
 Cancelled pending swap #2.
 ```
 
@@ -399,7 +411,7 @@ Cancelled pending swap #2.
 Pass `--no-watch` to get the old behavior (abort immediately if the condition isn't met now, no prompt, no save):
 
 ```
-xlayer-swap "swap 5 usd of USDT to OKB if OKB below 50" --no-watch
+swap "swap 5 usd of USDT to OKB if OKB below 50" --no-watch
 ```
 
 ---
@@ -451,17 +463,17 @@ Double quotes do **not** fix the problem — bash, zsh, and PowerShell all still
 
 ```bash
 # Quick: use nohup
-nohup xlayer-swap watch > ~/.xlayer-swap/watch.log 2>&1 &
+nohup swap watch > ~/.xlayer-swap/watch.log 2>&1 &
 
 # Nicer: use tmux or screen
-tmux new -s xswap -d 'xlayer-swap watch'
+tmux new -s xswap -d 'swap watch'
 # reattach with: tmux attach -t xswap
 ```
 
 ### Running `watch` in the background on Windows
 
 ```
-start /B xlayer-swap watch > %USERPROFILE%\.xlayer-swap\watch.log 2>&1
+start /B swap watch > %USERPROFILE%\.xlayer-swap\watch.log 2>&1
 ```
 
 Or open a second terminal window and let it run there.
@@ -487,6 +499,9 @@ Recent changes that make the tool nicer to use:
 | **OKX geoblock resilience** | 4-second timeout + Uniswap fallback + RPC-based balance reads. Tool works even when OKX's endpoint is blocked by your ISP. |
 | **Approval routing fix** | Approval now goes to the winning aggregator's router, not blindly OKX. |
 | **Dollar-value without `$`** | `1 usd`, `5 dollars`, `10 bucks` all parse as dollar values. Universal across all shells. |
+| **Auto-start background watcher** | Saving a pending swap auto-spawns a detached watcher. No separate `swap watch` command to remember. Duplicates are blocked via a PID file at `~/.xlayer-swap/watch.pid`. |
+| **Gas reserve for native OKB** | `swap all my OKB to USDT` now reserves `0.002 OKB` for gas automatically — no more "insufficient funds for intrinsic transaction cost" failures. |
+| **Watcher-status hint in `swap pending`** | The pending-list output now tells you whether the background watcher is currently running. |
 
 ---
 
